@@ -404,7 +404,7 @@ func orgAssignment(args ...bool) macaron.Handler {
 		if assignTeam {
 			ctx.Org.Team, err = models.GetTeamByID(ctx.ParamsInt64(":teamid"))
 			if err != nil {
-				if models.IsErrUserNotExist(err) {
+				if models.IsErrTeamNotExist(err) {
 					ctx.NotFound()
 				} else {
 					ctx.Error(http.StatusInternalServerError, "GetTeamById", err)
@@ -797,6 +797,11 @@ func RegisterRoutes(m *macaron.Macaron) {
 								Delete(reqToken(), reqRepoWriter(models.UnitTypeReleases), repo.DeleteReleaseAttachment)
 						})
 					})
+					m.Group("/tags", func() {
+						m.Combo("/:tag").
+							Get(repo.GetReleaseTag).
+							Delete(reqToken(), reqRepoWriter(models.UnitTypeReleases), repo.DeleteReleaseTag)
+					})
 				}, reqRepoReader(models.UnitTypeReleases))
 				m.Post("/mirror-sync", reqToken(), reqRepoWriter(models.UnitTypeCode), repo.MirrorSync)
 				m.Get("/editorconfig/:filename", context.RepoRef(), reqRepoReader(models.UnitTypeCode), repo.GetEditorconfig)
@@ -824,7 +829,9 @@ func RegisterRoutes(m *macaron.Macaron) {
 									Get(repo.GetPullReviewComments)
 							})
 						})
-
+						m.Combo("/requested_reviewers").
+							Delete(reqToken(), bind(api.PullReviewRequestOptions{}), repo.DeleteReviewRequests).
+							Post(reqToken(), bind(api.PullReviewRequestOptions{}), repo.CreateReviewRequests)
 					})
 				}, mustAllowPulls, reqRepoReader(models.UnitTypeCode), context.ReferencesGitRepo(false))
 				m.Group("/statuses", func() {
@@ -956,6 +963,11 @@ func RegisterRoutes(m *macaron.Macaron) {
 					m.Post("/orgs", bind(api.CreateOrgOption{}), admin.CreateOrg)
 					m.Post("/repos", bind(api.CreateRepoOption{}), admin.CreateRepo)
 				})
+			})
+			m.Group("/unadopted", func() {
+				m.Get("", admin.ListUnadoptedRepositories)
+				m.Post("/:username/:reponame", admin.AdoptRepository)
+				m.Delete("/:username/:reponame", admin.DeleteUnadoptedRepository)
 			})
 		}, reqToken(), reqSiteAdmin())
 
